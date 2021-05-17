@@ -1,6 +1,6 @@
 # Serverless Data API
 
-[![MIT License](https://badgen.now.sh/badge/License/MIT/blue)]
+![MIT License](https://badgen.now.sh/badge/License/MIT/blue)
 
 Cloudformation/SAM yaml file to create a GraphQL API with AWS AppSync backed by a DynamoDB table.
 
