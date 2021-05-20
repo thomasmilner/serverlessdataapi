@@ -88,38 +88,38 @@ Resources:
           mutation: Mutation
         }
 
-        type Item {
-          payload: [AWSJSON]
+        type Data {
+          data: [AWSJSON]
           pk1: String
           sk1: Int
         }
 
-        type ItemConnection {
-          items: [Item]
+        type DataCollection {
+          datas: [Data]
           nextToken: String
         }
 
-        input CreateItemInput {
+        input WriteDataInput {
           pk1: String!
           sk1: Int!
-          payload: [AWSJSON]!
+          data: [AWSJSON]!
         }
 
-        input UpdateItemInput {
+        input UpdateDataInput {
           pk1: String!
           sk1: Int!
-          payload: [AWSJSON]!
+          data: [AWSJSON]!
         }
 
         type Mutation {
-          createItem(input: CreateItemInput!): Item
-          updateItem(input: UpdateItemInput!): Item
-          deleteItem(pk1: String!, sk1: Int!): Item
+          writeData(input: WriteDataInput!): Data
+          updateData(input: UpdateDataInput!): Data
+          deleteData(pk1: String!, sk1: Int!): Data
         }
 
         type Query {
-          getItem(pk1: String!, sk1: Int!): Item
-          getAllPKItems(pk1: String!): ItemConnection
+          readData(pk1: String!, sk1: Int!): Data
+          readAllPKData(pk1: String!): DataCollection
         }
   
   GraphQLDataSource:
@@ -133,13 +133,13 @@ Resources:
         TableName: !Ref DynamoDBTable
         AwsRegion: !Sub ${AWS::Region}
 
-  AppSyncResolverGetItem:
+  AppSyncResolverReadData:
     Type: AWS::AppSync::Resolver
     DependsOn: GraphQLApiSchema
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
       TypeName: Query
-      FieldName: getItem
+      FieldName: readData
       DataSourceName: !GetAtt GraphQLDataSource.Name
       RequestMappingTemplate: >
         {
@@ -152,13 +152,13 @@ Resources:
         }
       ResponseMappingTemplate: $util.toJson($context.result)
 
-  AppSyncResolverGetAllPKItems:
+  AppSyncResolverReadAllPKData:
     Type: AWS::AppSync::Resolver
     DependsOn: GraphQLApiSchema
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
       TypeName: Query
-      FieldName: getAllPKItems
+      FieldName: ReadAllPKData
       DataSourceName: !GetAtt GraphQLDataSource.Name
       RequestMappingTemplate: >
         {
@@ -173,13 +173,13 @@ Resources:
         }
       ResponseMappingTemplate: $util.toJson($context.result)
 
-  AppSyncResolverCreateItem:
+  AppSyncResolverWriteData:
     Type: AWS::AppSync::Resolver
     DependsOn: GraphQLApiSchema
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
       TypeName: Mutation
-      FieldName: createItem
+      FieldName: writeData
       DataSourceName: !GetAtt GraphQLDataSource.Name
       RequestMappingTemplate: >
         {
@@ -200,13 +200,13 @@ Resources:
         }
       ResponseMappingTemplate: $util.toJson($context.result)
 
-  AppSyncResolverUpdateItem:
+  AppSyncResolverUpdateData:
     Type: AWS::AppSync::Resolver
     DependsOn: GraphQLApiSchema
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
       TypeName: Mutation
-      FieldName: updateItem
+      FieldName: updateData
       DataSourceName: !GetAtt GraphQLDataSource.Name
       RequestMappingTemplate: >
         {
@@ -220,13 +220,13 @@ Resources:
         }
       ResponseMappingTemplate: $util.toJson($context.result)
 
-  AppSyncResolverDeleteItem:
+  AppSyncResolverDeleteData:
     Type: AWS::AppSync::Resolver
     DependsOn: GraphQLApiSchema
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
       TypeName: Mutation
-      FieldName: deleteItem
+      FieldName: deleteData
       DataSourceName: !GetAtt GraphQLDataSource.Name
       RequestMappingTemplate: >
         {
