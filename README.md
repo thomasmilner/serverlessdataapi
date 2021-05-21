@@ -5,6 +5,10 @@
 
 Cloudformation/SAM yaml file to create a GraphQL API with AWS AppSync backed by a DynamoDB table.
 
+Check out this article for a breakdown of each resource in the template
+
+https://dev.to/tom_millner/build-a-serverless-data-api-with-appsync-and-dynamodb-3jmi
+
 ## Schema
 
 ```graphql
