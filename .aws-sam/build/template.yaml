@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: sample script to demo dynamodb streams functionality
+Resources:
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Ref: APIName
+      ProvisionedThroughput:
+        WriteCapacityUnits: 5
+        ReadCapacityUnits: 5
+      AttributeDefinitions:
+      - AttributeName: pk1
+        AttributeType: S
+      - AttributeName: sk1
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pk1
+        KeyType: HASH
+      - AttributeName: sk1
+        KeyType: RANGE
+  RoleAppSyncCloudWatch:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSAppSyncPushToCloudWatchLogs
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - appsync.amazonaws.com
+  RoleAppSyncDynamoDB:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+      - Ref: PolicyDynamoDB
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - appsync.amazonaws.com
+  PolicyDynamoDB:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Path: /service-role/
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:DeleteItem
+          Resource:
+          - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTable}
+  GraphQLApi:
+    Type: AWS::AppSync::GraphQLApi
+    Properties:
+      Name:
+        Ref: APIName
+      AuthenticationType: API_KEY
+      LogConfig:
+        CloudWatchLogsRoleArn:
+          Fn::GetAtt:
+          - RoleAppSyncCloudWatch
+          - Arn
+        ExcludeVerboseContent: false
+        FieldLogLevel: ALL
+  GraphQLApiSchema:
+    Type: AWS::AppSync::GraphQLSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      Definition: "schema {\n  query: Query\n  mutation: Mutation\n}\n\ntype Data\
+        \ {\n  data: [AWSJSON]\n  pk1: String\n  sk1: String\n}\n\ntype DataCollection\
+        \ {\n  items: [Data]\n  nextToken: String\n}\n\ninput WriteDataInput {\n \
+        \ pk1: String!\n  sk1: String!\n  data: [AWSJSON]!\n}\n\ninput UpdateDataInput\
+        \ {\n  pk1: String!\n  sk1: String!\n  data: [AWSJSON]!\n}\n\ntype Mutation\
+        \ {\n  writeData(input: WriteDataInput!): Data\n  updateData(input: UpdateDataInput!):\
+        \ Data\n  deleteData(pk1: String!, sk1: String!): Data\n}\n\ntype Query {\n\
+        \  readData(pk1: String!, sk1: String!): Data\n  readAllPKData(pk1: String!):\
+        \ DataCollection\n}\n"
+  GraphQLDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      Name:
+        Ref: APIName
+      Type: AMAZON_DYNAMODB
+      ServiceRoleArn:
+        Fn::GetAtt:
+        - RoleAppSyncDynamoDB
+        - Arn
+      DynamoDBConfig:
+        TableName:
+          Ref: DynamoDBTable
+        AwsRegion:
+          Fn::Sub: ${AWS::Region}
+  AppSyncResolverReadData:
+    Type: AWS::AppSync::Resolver
+    DependsOn: GraphQLApiSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      TypeName: Query
+      FieldName: readData
+      DataSourceName:
+        Fn::GetAtt:
+        - GraphQLDataSource
+        - Name
+      RequestMappingTemplate: "{\n  \"version\": \"2017-02-28\",\n  \"operation\"\
+        : \"GetItem\",\n  \"key\": {\n    \"pk1\": $util.dynamodb.toDynamoDBJson($ctx.args.pk1),\n\
+        \    \"sk1\": $util.dynamodb.toDynamoDBJson($ctx.args.sk1),\n  },\n}\n"
+      ResponseMappingTemplate: $util.toJson($context.result)
+  AppSyncResolverReadAllPKData:
+    Type: AWS::AppSync::Resolver
+    DependsOn: GraphQLApiSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      TypeName: Query
+      FieldName: readAllPKData
+      DataSourceName:
+        Fn::GetAtt:
+        - GraphQLDataSource
+        - Name
+      RequestMappingTemplate: "{\n    \"version\" : \"2017-02-28\",\n    \"operation\"\
+        \ : \"Query\",\n    \"query\" : {\n        \"expression\": \"pk1 = :pk1\"\
+        ,\n        \"expressionValues\" : {\n            \":pk1\" : $util.dynamodb.toDynamoDBJson($ctx.args.pk1),\n\
+        \        }\n    }\n}\n"
+      ResponseMappingTemplate: $util.toJson($context.result)
+  AppSyncResolverWriteData:
+    Type: AWS::AppSync::Resolver
+    DependsOn: GraphQLApiSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      TypeName: Mutation
+      FieldName: writeData
+      DataSourceName:
+        Fn::GetAtt:
+        - GraphQLDataSource
+        - Name
+      RequestMappingTemplate: "{\n  \"version\": \"2017-02-28\",\n  \"operation\"\
+        : \"PutItem\",\n  \"key\": {\n    \"pk1\": $util.dynamodb.toDynamoDBJson($ctx.args.input.pk1),\n\
+        \    \"sk1\": $util.dynamodb.toDynamoDBJson($ctx.args.input.sk1),\n  },\n\
+        \  \"attributeValues\": $util.dynamodb.toMapValuesJson($ctx.args.input),\n\
+        \  \"condition\": {\n    \"expression\": \"attribute_not_exists(#pk1) AND\
+        \ attribute_not_exists(#sk1)\",\n    \"expressionNames\": {\n      \"#pk1\"\
+        : \"pk1\",\n      \"#sk1\": \"sk1\",\n    },\n  },\n}\n"
+      ResponseMappingTemplate: $util.toJson($context.result)
+  AppSyncResolverUpdateData:
+    Type: AWS::AppSync::Resolver
+    DependsOn: GraphQLApiSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      TypeName: Mutation
+      FieldName: updateData
+      DataSourceName:
+        Fn::GetAtt:
+        - GraphQLDataSource
+        - Name
+      RequestMappingTemplate: "{\n  \"version\": \"2017-02-28\",\n  \"operation\"\
+        : \"PutItem\",\n  \"key\": {\n    \"pk1\": $util.dynamodb.toDynamoDBJson($ctx.args.input.pk1),\n\
+        \    \"sk1\": $util.dynamodb.toDynamoDBJson($ctx.args.input.sk1),\n  },\n\
+        \  \"attributeValues\": $util.dynamodb.toMapValuesJson($ctx.args.input),\n\
+        }\n"
+      ResponseMappingTemplate: $util.toJson($context.result)
+  AppSyncResolverDeleteData:
+    Type: AWS::AppSync::Resolver
+    DependsOn: GraphQLApiSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      TypeName: Mutation
+      FieldName: deleteData
+      DataSourceName:
+        Fn::GetAtt:
+        - GraphQLDataSource
+        - Name
+      RequestMappingTemplate: "{\n  \"version\": \"2017-02-28\",\n  \"operation\"\
+        : \"DeleteItem\",\n  \"key\": {\n    \"pk1\": $util.dynamodb.toDynamoDBJson($ctx.args.pk1),\n\
+        \    \"sk1\": $util.dynamodb.toDynamoDBJson($ctx.args.sk1),\n  },\n}\n"
+      ResponseMappingTemplate: $util.toJson($context.result)
+  AppSyncAPIKey:
+    Type: AWS::AppSync::ApiKey
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - GraphQLApi
+        - ApiId
+      Expires:
+        Ref: APIKeyExpiration
+Parameters:
+  APIName:
+    Type: String
+  APIKeyExpiration:
+    Type: Number
+Outputs:
+  APIKey:
+    Description: API Key
+    Value:
+      Fn::GetAtt:
+      - AppSyncAPIKey
+      - ApiKey
+  GraphQL:
+    Description: GraphQL URL
+    Value:
+      Fn::GetAtt:
+      - GraphQLApi
+      - GraphQLUrl

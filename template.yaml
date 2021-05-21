@@ -15,7 +15,7 @@ Resources:
         - AttributeName: "pk1"
           AttributeType: "S"
         - AttributeName: "sk1"
-          AttributeType: "N"
+          AttributeType: "S"
       KeySchema:
         - AttributeName: "pk1"
           KeyType: "HASH"
@@ -91,34 +91,34 @@ Resources:
         type Data {
           data: [AWSJSON]
           pk1: String
-          sk1: Int
+          sk1: String
         }
 
         type DataCollection {
-          datas: [Data]
+          items: [Data]
           nextToken: String
         }
 
         input WriteDataInput {
           pk1: String!
-          sk1: Int!
+          sk1: String!
           data: [AWSJSON]!
         }
 
         input UpdateDataInput {
           pk1: String!
-          sk1: Int!
+          sk1: String!
           data: [AWSJSON]!
         }
 
         type Mutation {
           writeData(input: WriteDataInput!): Data
           updateData(input: UpdateDataInput!): Data
-          deleteData(pk1: String!, sk1: Int!): Data
+          deleteData(pk1: String!, sk1: String!): Data
         }
 
         type Query {
-          readData(pk1: String!, sk1: Int!): Data
+          readData(pk1: String!, sk1: String!): Data
           readAllPKData(pk1: String!): DataCollection
         }
   
@@ -158,7 +158,7 @@ Resources:
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
       TypeName: Query
-      FieldName: ReadAllPKData
+      FieldName: readAllPKData
       DataSourceName: !GetAtt GraphQLDataSource.Name
       RequestMappingTemplate: >
         {
